@@ -9,8 +9,15 @@ import sys
 
 
 PORT = int(os.environ.get("PORT", "5173"))
-PUBLIC_DIR = Path(__file__).resolve().parent / "public"
 CHECKOUT_ENDPOINT = "https://chatgpt.com/backend-api/payments/checkout"
+
+
+def resource_path(*parts):
+    base_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base_path.joinpath(*parts)
+
+
+PUBLIC_DIR = resource_path("public")
 
 COUNTRY_OPTIONS = {
     "US": {"name": "美国", "currency": "USD"},

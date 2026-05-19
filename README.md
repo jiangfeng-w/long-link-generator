@@ -49,6 +49,32 @@ npx wrangler dev
 
 如果要修改 Worker 名称，编辑 `wrangler.jsonc` 里的 `name`。
 
+## 打包 Windows 可执行文件
+
+先安装 PyInstaller：
+
+```powershell
+python -m pip install pyinstaller
+```
+
+然后打包：
+
+```powershell
+.\build_exe.ps1
+```
+
+输出文件：
+
+```text
+dist\LongLinkGenerator.exe
+```
+
+双击运行后，终端会打印访问地址，例如：
+
+```text
+http://127.0.0.1:5173
+```
+
 ## 说明
 
 - token 不会写入本地文件，也不会在服务端日志中打印。
