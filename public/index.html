@@ -1,0 +1,1331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>长链生成器</title>
+  <script>
+    (() => {
+      try {
+        const savedTheme = localStorage.getItem("longlink-theme");
+        if (savedTheme === "dark" || savedTheme === "light") {
+          document.documentElement.dataset.theme = savedTheme;
+        }
+      } catch (_) {
+        // noop
+      }
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f6f3ec;
+      --ink: #171512;
+      --muted: #6d675d;
+      --line: #d9d1c2;
+      --field: #fffdf8;
+      --field-focus: #fffefa;
+      --accent: #16785f;
+      --accent-strong: #0d5f49;
+      --accent-soft: #edf6ef;
+      --amber: #bc7b16;
+      --error: #b42318;
+      --shadow: 0 24px 70px rgba(54, 46, 34, 0.16);
+      --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --radius-xl: 18px;
+      --radius-lg: 12px;
+      --radius-md: 9px;
+      --radius-sm: 6px;
+      --grid-line: rgba(23, 21, 18, 0.035);
+      --panel: rgba(255, 253, 248, 0.86);
+      --summary-bg: #171512;
+      --summary-ink: #f9f4e8;
+      --summary-muted: rgba(249, 244, 232, 0.68);
+      --summary-faint: rgba(249, 244, 232, 0.66);
+      --summary-line: rgba(249, 244, 232, 0.24);
+      --status-dot: #9ee0c8;
+      --surface-sweep: rgba(255, 253, 248, 0.42);
+      --trigger-bg: linear-gradient(135deg, rgba(255, 253, 248, 0.98), rgba(241, 235, 224, 0.92));
+      --trigger-hover-bg: linear-gradient(135deg, #fffefa, #edf5ee);
+      --menu-bg: rgba(255, 253, 248, 0.98);
+      --chip-bg: #171512;
+      --chip-ink: #fff8ec;
+      --arrow-bg: #eee7db;
+      --button-bg: #171512;
+      --button-ink: #fff8ec;
+      --ghost-hover-ink: #fff8ec;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --paper: #111412;
+      --ink: #f1eadc;
+      --muted: #aaa195;
+      --line: #3e463f;
+      --field: #191d19;
+      --field-focus: #202820;
+      --accent: #76d7b3;
+      --accent-strong: #9ee0c8;
+      --accent-soft: #22362d;
+      --amber: #f1b86b;
+      --error: #ff8e7f;
+      --shadow: 0 24px 74px rgba(0, 0, 0, 0.34);
+      --grid-line: rgba(241, 234, 220, 0.045);
+      --panel: rgba(25, 29, 25, 0.9);
+      --summary-bg: #090d0b;
+      --summary-ink: #f6eddc;
+      --summary-muted: rgba(246, 237, 220, 0.66);
+      --summary-faint: rgba(246, 237, 220, 0.62);
+      --summary-line: rgba(246, 237, 220, 0.18);
+      --status-dot: #76d7b3;
+      --surface-sweep: rgba(118, 215, 179, 0.12);
+      --trigger-bg: linear-gradient(135deg, rgba(31, 37, 32, 0.98), rgba(24, 28, 25, 0.94));
+      --trigger-hover-bg: linear-gradient(135deg, #202820, #1b3128);
+      --menu-bg: rgba(25, 30, 26, 0.98);
+      --chip-bg: #edf6ef;
+      --chip-ink: #111412;
+      --arrow-bg: #22362d;
+      --button-bg: #edf6ef;
+      --button-ink: #111412;
+      --ghost-hover-ink: #111412;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+        var(--paper);
+      background-size: 34px 34px;
+      color: var(--ink);
+      font-family: "Aptos", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    .shell {
+      width: min(1120px, calc(100vw - 32px));
+      min-height: 100vh;
+      margin: 0 auto;
+      display: grid;
+      align-items: center;
+      padding: 36px 0;
+    }
+
+    .tool {
+      position: relative;
+      overflow: visible;
+      display: grid;
+      grid-template-columns: minmax(280px, 0.8fr) minmax(360px, 1.2fr);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      min-height: 620px;
+      animation: toolEnter 720ms var(--ease) both;
+    }
+
+    .tool::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 -36%;
+      width: 34%;
+      z-index: 0;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, var(--surface-sweep), transparent);
+      transform: skewX(-14deg) translateX(-120%);
+      animation: surfaceSweep 980ms 180ms var(--ease) both;
+    }
+
+    .summary {
+      position: relative;
+      z-index: 1;
+      padding: 42px;
+      background: var(--summary-bg);
+      color: var(--summary-ink);
+      border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 32px;
+      animation: sideEnter 620ms 90ms var(--ease) both;
+    }
+
+    .summary-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .theme-toggle {
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--summary-line);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--summary-ink);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: background 0.18s ease, color 0.18s ease, transform 0.18s var(--ease), border-color 0.18s ease;
+    }
+
+    .theme-toggle:hover,
+    .theme-toggle:focus-visible {
+      background: rgba(158, 224, 200, 0.14);
+      border-color: rgba(158, 224, 200, 0.45);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .theme-toggle:active {
+      transform: translateY(0) scale(0.97);
+    }
+
+    .theme-icon {
+      width: 19px;
+      height: 19px;
+      transition: transform 0.2s var(--ease), opacity 0.2s ease;
+    }
+
+    .theme-icon-sun {
+      display: none;
+    }
+
+    :root[data-theme="dark"] .theme-icon-moon {
+      display: none;
+    }
+
+    :root[data-theme="dark"] .theme-icon-sun {
+      display: block;
+    }
+
+    .mark {
+      width: 46px;
+      height: 46px;
+      border: 1px solid rgba(249, 244, 232, 0.24);
+      border-color: var(--summary-line);
+      border-radius: var(--radius-lg);
+      display: grid;
+      place-items: center;
+      color: var(--status-dot);
+      animation: markPop 560ms 260ms var(--ease) both;
+    }
+
+    .mark svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .mark path {
+      stroke-dasharray: 42;
+      stroke-dashoffset: 42;
+      animation: drawArrow 720ms 540ms var(--ease) forwards;
+    }
+
+    h1 {
+      margin: 28px 0 12px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(38px, 6vw, 68px);
+      line-height: 0.94;
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+
+    .summary p {
+      margin: 0;
+      max-width: 32ch;
+      color: var(--summary-muted);
+      font-size: 15px;
+      line-height: 1.65;
+      animation: textLift 620ms 260ms var(--ease) both;
+    }
+
+    .status-strip {
+      display: grid;
+      gap: 10px;
+      color: var(--summary-faint);
+      font-size: 13px;
+    }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      animation: textLift 520ms var(--ease) forwards;
+    }
+
+    .status-line:nth-child(1) {
+      animation-delay: 420ms;
+    }
+
+    .status-line:nth-child(2) {
+      animation-delay: 520ms;
+    }
+
+    .status-line:nth-child(3) {
+      animation-delay: 620ms;
+    }
+
+    .status-line::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--status-dot);
+      animation: statusBlink 2.4s ease-in-out infinite;
+    }
+
+    .workspace {
+      position: relative;
+      z-index: 2;
+      padding: 42px;
+      display: grid;
+      gap: 24px;
+      align-content: center;
+      animation: formEnter 640ms 180ms var(--ease) both;
+    }
+
+    .form-grid {
+      position: relative;
+      display: grid;
+      gap: 18px;
+    }
+
+    .field {
+      position: relative;
+      display: grid;
+      gap: 8px;
+      animation: fieldEnter 520ms var(--ease) both;
+    }
+
+    .country-field {
+      z-index: 60;
+    }
+
+    .country-field.is-open {
+      z-index: 120;
+    }
+
+    .form-grid > .field:nth-child(1) {
+      animation-delay: 300ms;
+    }
+
+    .form-grid > .field:nth-child(2) {
+      animation-delay: 380ms;
+    }
+
+    .form-grid > .field:nth-child(4) {
+      animation-delay: 460ms;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--field);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    input,
+    select {
+      min-height: 48px;
+      padding: 0 14px;
+    }
+
+    textarea {
+      min-height: 152px;
+      resize: vertical;
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      line-height: 1.5;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(22, 120, 95, 0.14);
+      background: var(--field-focus);
+      transform: translateY(-1px);
+    }
+
+    .input-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .detected-type {
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+      transition: color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+    }
+
+    .detected-type.is-live {
+      animation: typePing 360ms var(--ease);
+    }
+
+    .native-select {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      border: 0;
+      white-space: nowrap;
+    }
+
+    .country-picker {
+      position: relative;
+      z-index: 1;
+    }
+
+    .country-picker.is-open {
+      z-index: 130;
+    }
+
+    .country-trigger {
+      width: 100%;
+      min-height: 58px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--trigger-bg);
+      color: var(--ink);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      text-align: left;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s var(--ease), background 0.18s ease;
+    }
+
+    .country-trigger:hover,
+    .country-trigger:focus-visible,
+    .country-picker.is-open .country-trigger {
+      border-color: rgba(22, 120, 95, 0.62);
+      background: var(--trigger-hover-bg);
+      box-shadow: 0 0 0 3px rgba(22, 120, 95, 0.12), 0 14px 28px rgba(54, 46, 34, 0.1);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .country-code,
+    .option-code {
+      border-radius: var(--radius-md);
+      display: grid;
+      place-items: center;
+      color: var(--chip-ink);
+      background: var(--chip-bg);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .country-code {
+      width: 42px;
+      height: 38px;
+    }
+
+    .country-copy,
+    .option-copy {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .country-name,
+    .option-name {
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .country-currency,
+    .option-currency {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .country-arrow {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: var(--arrow-bg);
+      color: var(--accent-strong);
+      transition: transform 0.18s var(--ease), background 0.18s ease;
+    }
+
+    .country-arrow svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .country-picker.is-open .country-arrow {
+      background: rgba(22, 120, 95, 0.12);
+      transform: rotate(180deg);
+    }
+
+    .country-menu {
+      position: absolute;
+      z-index: 140;
+      top: calc(100% + 8px);
+      right: 0;
+      left: 0;
+      max-height: 252px;
+      overflow: auto;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--menu-bg);
+      box-shadow: 0 22px 48px rgba(54, 46, 34, 0.18);
+      opacity: 0;
+      transform: translateY(-6px) scale(0.99);
+      transform-origin: top center;
+      transition: opacity 120ms ease, transform 120ms var(--ease);
+    }
+
+    .country-menu[hidden] {
+      display: none;
+    }
+
+    .country-picker.is-open .country-menu {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .country-option {
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--ink);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.16s ease, transform 0.16s var(--ease), color 0.16s ease;
+    }
+
+    .country-option + .country-option {
+      margin-top: 2px;
+    }
+
+    .country-option:hover,
+    .country-option:focus-visible,
+    .country-option[aria-selected="true"] {
+      background: var(--accent-soft);
+      outline: none;
+      transform: translateX(2px);
+    }
+
+    .option-code {
+      width: 36px;
+      height: 32px;
+      background: var(--chip-bg);
+    }
+
+    .option-check {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: transparent;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .country-option[aria-selected="true"] .option-check {
+      color: var(--chip-ink);
+      background: var(--accent-strong);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      animation: fieldEnter 520ms 420ms var(--ease) both;
+    }
+
+    .button {
+      position: relative;
+      overflow: hidden;
+      border: 0;
+      border-radius: var(--radius-md);
+      min-height: 48px;
+      padding: 0 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      background: var(--button-bg);
+      color: var(--button-ink);
+      transition: transform 0.18s var(--ease), background 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
+      will-change: transform;
+    }
+
+    .button::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+      transform: translateX(-120%);
+      transition: transform 520ms var(--ease);
+    }
+
+    .button svg {
+      width: 18px;
+      height: 18px;
+      transition: transform 0.18s var(--ease);
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      background: var(--accent-strong);
+      box-shadow: 0 12px 28px rgba(13, 95, 73, 0.18);
+    }
+
+    .button:hover::after {
+      transform: translateX(120%);
+    }
+
+    .button:hover svg {
+      transform: translateX(2px);
+    }
+
+    .button:active {
+      transform: translateY(0) scale(0.985);
+    }
+
+    .button:disabled {
+      cursor: progress;
+      opacity: 0.58;
+      transform: none;
+    }
+
+    .button.is-working svg {
+      animation: arrowRun 760ms ease-in-out infinite;
+    }
+
+    .ghost {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .ghost:hover {
+      color: var(--ghost-hover-ink);
+    }
+
+    .result-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    #resultInput.is-fresh {
+      animation: resultGlow 900ms var(--ease);
+    }
+
+    .message {
+      min-height: 22px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      animation: fieldEnter 520ms 500ms var(--ease) both;
+    }
+
+    .message.is-updated {
+      animation: messageNudge 320ms var(--ease);
+    }
+
+    .message.error {
+      color: var(--error);
+      font-weight: 700;
+    }
+
+    .message.ok {
+      color: var(--accent-strong);
+      font-weight: 700;
+    }
+
+    @keyframes toolEnter {
+      from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes surfaceSweep {
+      from {
+        transform: skewX(-14deg) translateX(-120%);
+      }
+      to {
+        transform: skewX(-14deg) translateX(440%);
+      }
+    }
+
+    @keyframes sideEnter {
+      from {
+        opacity: 0;
+        transform: translateX(-18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes formEnter {
+      from {
+        opacity: 0;
+        transform: translateX(14px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes fieldEnter {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes textLift {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes markPop {
+      from {
+        opacity: 0;
+        transform: scale(0.78) rotate(-8deg);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+      }
+    }
+
+    @keyframes drawArrow {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes statusBlink {
+      0%,
+      100% {
+        opacity: 0.62;
+        transform: scale(0.86);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.16);
+      }
+    }
+
+    @keyframes typePing {
+      0% {
+        opacity: 0.62;
+        transform: translateY(4px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes arrowRun {
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+      50% {
+        transform: translateX(4px);
+      }
+    }
+
+    @keyframes resultGlow {
+      0% {
+        border-color: var(--line);
+        box-shadow: none;
+      }
+      30% {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(22, 120, 95, 0.14), 0 16px 34px rgba(22, 120, 95, 0.12);
+      }
+      100% {
+        border-color: var(--line);
+        box-shadow: none;
+      }
+    }
+
+    @keyframes messageNudge {
+      0% {
+        opacity: 0.45;
+        transform: translateY(4px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes menuDrop {
+      from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .tool {
+        grid-template-columns: 1fr;
+      }
+
+      .summary {
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      }
+
+      .summary,
+      .workspace {
+        padding: 30px;
+      }
+
+      .summary {
+        min-height: 300px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .shell {
+        width: min(100vw - 20px, 1120px);
+        padding: 10px 0;
+      }
+
+      .summary,
+      .workspace {
+        padding: 22px;
+      }
+
+      .tool {
+        min-height: 0;
+      }
+
+      .result-row {
+        grid-template-columns: 1fr;
+      }
+
+      .button {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="tool" aria-labelledby="title">
+      <aside class="summary">
+        <div>
+          <div class="summary-top">
+            <div class="mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M7 12h10M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换暗色模式" aria-pressed="false">
+              <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M20 15.4A7.6 7.6 0 0 1 8.6 4a8.2 8.2 0 1 0 11.4 11.4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              </svg>
+              <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 5V3m0 18v-2M5 12H3m18 0h-2M6.2 6.2 4.8 4.8m14.4 14.4-1.4-1.4m0-11.6 1.4-1.4M4.8 19.2l1.4-1.4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <h1 id="title">长链生成器</h1>
+          <p>本地转发 ChatGPT checkout 请求，生成 hosted payment 长链接。</p>
+        </div>
+        <div class="status-strip" aria-label="处理方式">
+          <span class="status-line">Token 仅用于本次请求</span>
+          <span class="status-line">生成结果手动复制</span>
+          <span class="status-line">默认 Plus hosted 模式</span>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <div class="form-grid">
+          <div class="field">
+            <div class="input-meta">
+              <label for="credentialInput">凭证内容</label>
+              <span class="detected-type" id="detectedType">等待输入</span>
+            </div>
+            <textarea id="credentialInput" data-testid="credential-input" autocomplete="off" spellcheck="false" placeholder='粘贴 accessToken 或 {"accessToken":"..."}'></textarea>
+          </div>
+
+          <div class="field country-field" id="countryField">
+            <label for="countrySelect">国家 / 币种</label>
+            <select class="native-select" id="countrySelect" data-testid="country-select" tabindex="-1">
+              <option value="US">美国 / USD</option>
+              <option value="ID">印尼 / IDR</option>
+              <option value="DE">德国 / EUR</option>
+              <option value="FR">法国 / EUR</option>
+              <option value="GB">英国 / GBP</option>
+              <option value="JP">日本 / JPY</option>
+              <option value="KR">韩国 / KRW</option>
+              <option value="SG">新加坡 / SGD</option>
+              <option value="CA">加拿大 / CAD</option>
+              <option value="AU">澳大利亚 / AUD</option>
+            </select>
+            <div class="country-picker" id="countryPicker">
+              <button class="country-trigger" id="countryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                <span class="country-code" id="countryCode">US</span>
+                <span class="country-copy">
+                  <span class="country-name" id="countryName">美国</span>
+                  <span class="country-currency" id="countryCurrency">USD</span>
+                </span>
+                <span class="country-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+              </button>
+              <div class="country-menu" id="countryMenu" role="listbox" aria-label="国家 / 币种" hidden></div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="button" id="generateButton" data-testid="generate-button" type="button">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              生成长链接
+            </button>
+          </div>
+
+          <div class="field">
+            <label for="resultInput">长链接</label>
+            <div class="result-row">
+              <input id="resultInput" data-testid="result-input" readonly placeholder="生成后显示在这里">
+              <button class="button ghost" id="copyButton" data-testid="copy-button" type="button">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M9 9h10v10H9zM5 15H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                </svg>
+                复制
+              </button>
+              <button class="button ghost" id="openButton" data-testid="open-button" type="button">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 17 17 7M10 7h7v7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                打开
+              </button>
+            </div>
+          </div>
+
+          <div class="message" id="message" role="status" aria-live="polite">就绪</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const credentialInput = document.getElementById("credentialInput");
+    const detectedType = document.getElementById("detectedType");
+    const themeToggle = document.getElementById("themeToggle");
+    const countrySelect = document.getElementById("countrySelect");
+    const countryField = document.getElementById("countryField");
+    const countryPicker = document.getElementById("countryPicker");
+    const countryTrigger = document.getElementById("countryTrigger");
+    const countryMenu = document.getElementById("countryMenu");
+    const countryCode = document.getElementById("countryCode");
+    const countryName = document.getElementById("countryName");
+    const countryCurrency = document.getElementById("countryCurrency");
+    const generateButton = document.getElementById("generateButton");
+    const copyButton = document.getElementById("copyButton");
+    const openButton = document.getElementById("openButton");
+    const resultInput = document.getElementById("resultInput");
+    const message = document.getElementById("message");
+    const countries = Array.from(countrySelect.options).map((option) => {
+      const [name, currency] = option.textContent.split("/").map((item) => item.trim());
+      return { value: option.value, name, currency };
+    });
+
+    function restartAnimation(element, className) {
+      element.classList.remove(className);
+      void element.offsetWidth;
+      element.classList.add(className);
+    }
+
+    function applyTheme(theme, persist = true) {
+      const nextTheme = theme === "dark" ? "dark" : "light";
+      document.documentElement.dataset.theme = nextTheme;
+      themeToggle.setAttribute("aria-pressed", String(nextTheme === "dark"));
+      themeToggle.setAttribute("aria-label", nextTheme === "dark" ? "切换亮色模式" : "切换暗色模式");
+      if (persist) {
+        try {
+          localStorage.setItem("longlink-theme", nextTheme);
+        } catch (_) {
+          // noop
+        }
+      }
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      applyTheme(currentTheme === "dark" ? "light" : "dark");
+    }
+
+    function setMessage(text, type = "") {
+      message.textContent = text;
+      message.className = `message ${type}`.trim();
+      restartAnimation(message, "is-updated");
+    }
+
+    function setDetectedType(text) {
+      if (detectedType.textContent === text) return;
+      detectedType.textContent = text;
+      restartAnimation(detectedType, "is-live");
+    }
+
+    function looksLikeJson(text) {
+      return text.startsWith("{") || text.startsWith("[");
+    }
+
+    function getCountry(value) {
+      return countries.find((country) => country.value === value) || countries[0];
+    }
+
+    function setCountry(value) {
+      const country = getCountry(value);
+      countrySelect.value = country.value;
+      countryCode.textContent = country.value;
+      countryName.textContent = country.name;
+      countryCurrency.textContent = country.currency;
+
+      countryMenu.querySelectorAll(".country-option").forEach((option) => {
+        const selected = option.dataset.value === country.value;
+        option.setAttribute("aria-selected", String(selected));
+        option.tabIndex = selected ? 0 : -1;
+      });
+    }
+
+    function setCountryMenu(open) {
+      if (open) {
+        countryMenu.hidden = false;
+        requestAnimationFrame(() => {
+          if (countryMenu.hidden) return;
+          countryField.classList.add("is-open");
+          countryPicker.classList.add("is-open");
+          countryTrigger.setAttribute("aria-expanded", "true");
+        });
+        return;
+      }
+
+      countryField.classList.remove("is-open");
+      countryPicker.classList.remove("is-open");
+      countryTrigger.setAttribute("aria-expanded", "false");
+      countryMenu.hidden = true;
+    }
+
+    function focusSelectedCountry() {
+      const selected = countryMenu.querySelector('.country-option[aria-selected="true"]');
+      selected?.focus();
+    }
+
+    function focusCountryByOffset(offset) {
+      const options = Array.from(countryMenu.querySelectorAll(".country-option"));
+      const currentIndex = Math.max(0, options.indexOf(document.activeElement));
+      const nextIndex = (currentIndex + offset + options.length) % options.length;
+      options[nextIndex]?.focus();
+    }
+
+    function buildCountryMenu() {
+      const fragment = document.createDocumentFragment();
+
+      countries.forEach((country) => {
+        const option = document.createElement("button");
+        option.className = "country-option";
+        option.type = "button";
+        option.setAttribute("role", "option");
+        option.dataset.value = country.value;
+
+        const code = document.createElement("span");
+        code.className = "option-code";
+        code.textContent = country.value;
+
+        const copy = document.createElement("span");
+        copy.className = "option-copy";
+
+        const name = document.createElement("span");
+        name.className = "option-name";
+        name.textContent = country.name;
+
+        const currency = document.createElement("span");
+        currency.className = "option-currency";
+        currency.textContent = country.currency;
+
+        const check = document.createElement("span");
+        check.className = "option-check";
+        check.setAttribute("aria-hidden", "true");
+        check.textContent = "✓";
+
+        copy.appendChild(name);
+        copy.appendChild(currency);
+        option.appendChild(code);
+        option.appendChild(copy);
+        option.appendChild(check);
+        option.addEventListener("click", () => {
+          setCountry(country.value);
+          setCountryMenu(false);
+          countryTrigger.focus();
+        });
+
+        fragment.appendChild(option);
+      });
+
+      countryMenu.appendChild(fragment);
+      setCountry(countrySelect.value);
+    }
+
+    function analyzeCredential() {
+      const raw = credentialInput.value.trim();
+
+      if (!raw) {
+        setDetectedType("等待输入");
+        return { kind: "empty", raw };
+      }
+
+      if (!looksLikeJson(raw)) {
+        setDetectedType("AccessToken");
+        return { kind: "token", raw };
+      }
+
+      try {
+        JSON.parse(raw);
+        setDetectedType("JSON");
+        return { kind: "json", raw };
+      } catch (_) {
+        setDetectedType("JSON 格式待修正");
+        return { kind: "invalid-json", raw };
+      }
+    }
+
+    function getInputPayload() {
+      const credential = analyzeCredential();
+
+      if (credential.kind === "empty") {
+        throw new Error("请粘贴 accessToken 或包含 accessToken 的 JSON。");
+      }
+
+      if (credential.kind === "invalid-json") {
+        throw new Error("JSON 格式不正确。");
+      }
+
+      return credential.kind === "json"
+        ? { sessionJson: credential.raw }
+        : { accessToken: credential.raw };
+    }
+
+    async function generateLongLink() {
+      resultInput.value = "";
+      let payload;
+
+      try {
+        payload = {
+          ...getInputPayload(),
+          country: countrySelect.value
+        };
+      } catch (error) {
+        setMessage(error.message, "error");
+        return;
+      }
+
+      generateButton.disabled = true;
+      generateButton.classList.add("is-working");
+      setMessage("生成中...");
+
+      try {
+        const response = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          const detail = data?.detail ? ` ${JSON.stringify(data.detail)}` : "";
+          throw new Error(`${data?.error || `HTTP ${response.status}`}${detail}`);
+        }
+
+        resultInput.value = data.url;
+        restartAnimation(resultInput, "is-fresh");
+        setMessage(`${data.country} / ${data.currency} 长链接已生成。`, "ok");
+      } catch (error) {
+        setMessage(error.message || "生成失败。", "error");
+      } finally {
+        generateButton.disabled = false;
+        generateButton.classList.remove("is-working");
+      }
+    }
+
+    async function copyResult() {
+      const text = resultInput.value.trim();
+      if (!text) {
+        setMessage("没有可复制的长链接。", "error");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        resultInput.select();
+        document.execCommand("copy");
+      }
+
+      setMessage("已复制到剪贴板。", "ok");
+      restartAnimation(resultInput, "is-fresh");
+    }
+
+    function openResult() {
+      const text = resultInput.value.trim();
+      if (!text) {
+        setMessage("没有可打开的长链接。", "error");
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = text;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setMessage("已在新标签页打开长链接。", "ok");
+    }
+
+    credentialInput.addEventListener("input", analyzeCredential);
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light", false);
+    themeToggle.addEventListener("click", toggleTheme);
+    buildCountryMenu();
+    countryTrigger.addEventListener("click", () => setCountryMenu(!countryPicker.classList.contains("is-open")));
+    countryTrigger.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        setCountryMenu(true);
+        setTimeout(focusSelectedCountry, 0);
+      }
+    });
+    countryMenu.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setCountryMenu(false);
+        countryTrigger.focus();
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusCountryByOffset(1);
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        focusCountryByOffset(-1);
+      }
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        document.activeElement?.click();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!countryPicker.contains(event.target)) setCountryMenu(false);
+    });
+    generateButton.addEventListener("click", generateLongLink);
+    copyButton.addEventListener("click", copyResult);
+    openButton.addEventListener("click", openResult);
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "long-link-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local checkout long-link generator.",
+  "scripts": {
+    "start": "node server.js",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
