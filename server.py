@@ -5,11 +5,15 @@ from urllib.request import Request, urlopen
 import errno
 import json
 import os
+import socket
 import sys
 
 
+HOST = "127.0.0.1"
 PORT = int(os.environ.get("PORT", "5173"))
 CHECKOUT_ENDPOINT = "https://chatgpt.com/backend-api/payments/checkout"
+PORT_SEARCH_LIMIT = 10
+PORT_IN_USE_ERRORS = (errno.EADDRINUSE, errno.EACCES, 10048, 10013)
 
 
 def resource_path(*parts):
@@ -234,22 +238,31 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(500, {"error": str(error) or "生成失败。"})
 
 
-def main():
-    server = None
-    active_port = PORT
-    for offset in range(10):
-        active_port = PORT + offset
+def is_port_accepting_connections(host, port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.2)
+        return probe.connect_ex((host, port)) == 0
+
+
+def create_http_server(host, start_port, max_attempts, handler_class):
+    for offset in range(max_attempts):
+        active_port = start_port + offset
+        if is_port_accepting_connections(host, active_port):
+            continue
+
         try:
-            server = ThreadingHTTPServer(("127.0.0.1", active_port), Handler)
-            break
+            return ThreadingHTTPServer((host, active_port), handler_class), active_port
         except OSError as error:
-            if error.errno not in (errno.EADDRINUSE, errno.EACCES, 10048, 10013):
+            if error.errno not in PORT_IN_USE_ERRORS:
                 raise
 
-    if server is None:
-        raise OSError(f"无法在 {PORT}-{PORT + 9} 范围内找到可用端口。")
+    raise OSError(f"无法在 {start_port}-{start_port + max_attempts - 1} 范围内找到可用端口。")
 
-    print(f"Long link generator is running at http://127.0.0.1:{active_port}")
+
+def main():
+    server, active_port = create_http_server(HOST, PORT, PORT_SEARCH_LIMIT, Handler)
+
+    print(f"Long link generator is running at http://{HOST}:{active_port}")
     server.serve_forever()
 
 
